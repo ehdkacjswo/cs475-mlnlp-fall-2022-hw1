@@ -1,6 +1,7 @@
 import csv
 import random
 import re
+from sre_parse import SPECIAL_CHARS
 import sys
 import os
 import argparse
@@ -21,6 +22,26 @@ except ModuleNotFoundError:
     # There can be many possible types, but we recommend you to use the types below.
     ArrayLike = Union[list, tuple, np.ndarray]
 
+"""
+
+"""
+stopword = set(['them', 'through', 'themselves', 'a', 'until', "couldn't", 'ourselves', "doesn't", 'or', "mightn't", 'why', 'wouldn', 'mustn', 'been', 'my', 'i', 'off', 'herself',
+"needn't", 'ours', 'just', 'they', "hasn't", 'ma', 'most', 'to', 't', 's', 'her', 'from', 'our', 'y', "you'd", 'who', 'you', 'of', 'did', 'yourself', 'by', "should've", 'which',
+'again', 'yourselves', 'how', 'aren', 'she', 'for', 'into', 'himself', 're', 'about', 'during', 'only', 'be', "you'll", 'own', 'shan', 'his', 'has', 'hadn', "you've", "don't",
+'above', 'o', 'yours', 'that', 'this', 'won', 'is', 'mightn', 'out', 'can', 'between', "shan't", 'was', 'both', 'against', 'he', 'too', "shouldn't", 'don', 'myself', 'have',
+"weren't", 'its', 'does', 'are', 've', 'll', "aren't", 'ain', 'once', 'than', 'isn', 'haven', "hadn't", 'me', "didn't", 'because', "wouldn't", 'it', 'hers', 'should', 'these',
+'as', 'needn', 'being', 'any', 'couldn', 'were', "you're", 'below', 'in', 'on', 'such', 'few', 'whom', 'itself', 'didn', 'd', 'so', "won't", 'no', 'we', 'doing', 'do', 'before',
+'your', "she's", 'theirs', 'what', 'am', 'had', 'with', 'same', "isn't", 'wasn', 'weren', 'the', 'and', 'will', 'all', 'down', 'at', 'where', 'now', 'other', 'then', 'doesn',
+'over', "mustn't", 'if', 'under', 'here', 'more', 'those', 'further', 'having', 'some', 'their', "haven't", 'but', 'after', 'hasn', "that'll", 'when', 'very', 'nor', 'him', 'there',
+'up', "it's", 'shouldn', 'each', 'while', "wasn't", 'an', 'm', 'not'])
+
+special_list = ['~', '`', '!', '@', '#', '$', '%', '^', '&', '*', '(', ')', '-', '_', '+', '=', '{', '[', '}', ']', ':', ';', '"', '\'', '<', ',', '>', '.', '?', '/', '\\']
+
+special_dict = dict()
+for char in special_list:
+    special_dict[ord(char)] = ord(' ')
+
+del special_list
 
 """
 # N-gram Bag-of-Words Classification with scikit-learn
@@ -111,7 +132,41 @@ def preprocess_and_split_to_tokens(sentences: ArrayLike, n_gram: int) -> ArrayLi
         e.g., [["I", "like", "apples"], ["I", "love", "python3"]] for n_gram == 1
               [["I like", "like apples"], ["I love", "love python3"]] for n_gram == 2 
     """
-    raise NotImplementedError
+
+    """Make sure sentences are """
+    sents = np.array(sentences)
+    result = []
+
+    """ Tokenizing every strings in array"""
+    for sent in sents:
+        """
+        Executing pre-processing
+        1. Deleting html break tag
+        2. Deleting special characters
+        3. Lowercase 
+        """
+        sent1 = sent.replace('<br />', ' ')
+        sent2 = sent1.translate(special_dict)
+        sent3 = sent2.lower()
+        tokens = sent3.split()
+
+        result.append([])
+        token_ind = []
+
+        for ind, token in enumerate(tokens):
+            if token in stopword:
+                continue
+
+            token_ind.append(ind)
+            if len(token_ind) >= n_gram:
+                new_token = tokens[token_ind[-n_gram]]
+                for i in range(-n_gram + 1, 0):
+                    new_token += " "
+                    new_token += tokens[token_ind[i]]
+            
+            result[-1].append(new_token)
+
+    return result
 
 
 def create_bow(sentences: ArrayLike, n_gram: int, vocab: Dict[str, int] = None,  
