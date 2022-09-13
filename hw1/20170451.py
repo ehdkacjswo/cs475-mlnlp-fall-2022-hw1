@@ -15,7 +15,7 @@ from sklearn.naive_bayes import MultinomialNB
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.neural_network import MLPClassifier
-from sklearn.preprocessing import normalize
+from numpy import linalg
 
 try:
     from numpy.typing import ArrayLike
@@ -35,7 +35,7 @@ stopword = set(['them', 'through', 'themselves', 'a', 'until', "couldn't", 'ours
 'up', "it's", 'shouldn', 'each', 'while', "wasn't", 'an', 'm', 'not'])
 
 # List of special characters to ignore
-special_list = ['~', '`', '!', '@', '#', '$', '%', '^', '&', '*', '(', ')', '-', '_', '+', '=', '{', '[', '}', ']', ':', ';', '"', '\'', '<', ',', '>', '.', '?', '/', '\\']
+special_list = ['~', '`', '!', '@', '#', '$', '%', '^', '&', '*', '(', ')', '-', '_', '+', '=', '{', '[', '}', ']', ':', ';', '"', '\'', '<', ',', '>', '.', '?', '/', '\\', '\n']
 
 special_dict = dict()
 for char in special_list:
@@ -120,6 +120,7 @@ def _get_example_of_errors(texts_to_analyze, preds_to_analyze, labels_to_analyze
         print("\t- {}".format(line))
 
 
+# "sentences" is given in np.ndarray
 def preprocess_and_split_to_tokens(sentences: ArrayLike, n_gram: int) -> ArrayLike:
     """
     :param sentences: (ArrayLike) ArrayLike objects of strings.
@@ -133,37 +134,45 @@ def preprocess_and_split_to_tokens(sentences: ArrayLike, n_gram: int) -> ArrayLi
               [["I like", "like apples"], ["I love", "love python3"]] for n_gram == 2 
     """
 
-    """Make sure sentences are """
-    sents = np.array(sentences)
     result = []
 
     # Tokenizing every strings in array
-    for sent in sents:
-        """
-        Executing pre-processing
-        1. Deleting html break tag
-        2. Deleting special characters
-        3. Lowercase 
-        """
+    for sent in sentences:
+
+        # Deleting html break tag
         sent1 = sent.replace('<br />', ' ')
+
+        # Deleting special characters
         sent2 = sent1.translate(special_dict)
+
+        # Lowercase
         sent3 = sent2.lower()
+
+        # Split into tokens
         tokens = sent3.split()
 
         result.append([])
         token_ind = []
 
+        # Creating n-gram tokens with given tokens
         for ind, token in enumerate(tokens):
+
+            # Ignore stopword
             if token in stopword:
                 continue
 
+            # Add index of current token
             token_ind.append(ind)
+
+            # If there's enough tokens, build n-gram token with them
             if len(token_ind) >= n_gram:
                 new_token = tokens[token_ind[-n_gram]]
+
                 for i in range(-n_gram + 1, 0):
                     new_token += " "
                     new_token += tokens[token_ind[i]]
-            
+
+                # Add the built n-gram token to return value
                 result[-1].append(new_token)
 
     return result
@@ -189,32 +198,49 @@ def create_bow(sentences: ArrayLike, n_gram: int, vocab: Dict[str, int] = None,
         e.g., ({"I": 0, "like": 1, "apples": 2, "love": 3, "python3": 4}, for n_gram : 1 
                 [[1, 1, 1, 0, 0], [1, 0, 0, 1, 1]])
     """
+    # Split given sentences into tokens
     tokens_per_sentence = preprocess_and_split_to_tokens(sentences, n_gram)
 
+    # When vocabulary is not given, build one
     if vocab is None:
         vocab = dict()
         ind = 0
 
         for tokens in tokens_per_sentence:
             for token in tokens:
-                if vocab.get(token) == None:
+                if vocab.get(token) is None:
                     vocab[token] = ind
                     ind += 1
     
+    # Initialize bow array with zeros
     bow_array = np.zeros(shape=(len(sentences), len(vocab)), dtype=np.float32)
+
+    # Build bow array by counting number of tokens
     for ind, tokens in enumerate(tokens_per_sentence):
         for token in tokens:
-            token_id = vocab.get(token)
-            if token_id == None:
-                continue
 
+            # Search for token on vocab
+            token_id = vocab.get(token)
+
+            # If there's none, skip current token
+            if token_id is None:
+                continue
+            
+            # If current token is on vocab, add one count
             bow_array[ind][token_id] += 1
 
-    #normalized_bow_array = normalize(bow_array)
-    normalized_bow_array = bow_array
-    print("{} Bow construction".format(msg_prefix))
+        # Normalize bow vector with infinite norm (Currently best)
+        norm = linalg.norm(bow_array[ind], ord=np.inf)
 
-    return vocab, normalized_bow_array
+        # If norm is 0, we don't need to nomalize it
+        if norm == 0:
+            continue
+
+        # Normalize vector
+        bow_array[ind] /= norm
+
+    print("{} Bow construction".format(msg_prefix))
+    return vocab, bow_array
 
 
 def run(test_xs=None, test_ys=None, num_samples=5000, verbose=True, n_gram=1):
@@ -252,6 +278,9 @@ def run(test_xs=None, test_ys=None, num_samples=5000, verbose=True, n_gram=1):
         print("\n[Validation] Accuracy: {}".format(val_accuracy))
         _get_example_of_errors(val_xs, val_preds, val_ys)
 
+    # Deleting local variable due to memory issue
+    del val_bows
+
     # Grading: Do not modify below lines.
     if test_xs is not None:
         _, test_bows = create_bow(test_xs, n_gram=n_gram, vocab=my_vocab, msg_prefix="\n[Test]")
@@ -266,7 +295,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("--num-samples", default=5000, type=int)
     parser.add_argument("--verbose", default=True, type=bool)
-    parser.add_argument("--n_gram", default=2, type=int)
+    parser.add_argument("--n_gram", default=1, type=int)
     args = parser.parse_args()
 
     run(
