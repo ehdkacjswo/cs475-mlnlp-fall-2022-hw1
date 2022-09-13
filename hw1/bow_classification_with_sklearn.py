@@ -15,6 +15,7 @@ from sklearn.naive_bayes import MultinomialNB
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.neural_network import MLPClassifier
+from sklearn.preprocessing import normalize
 
 try:
     from numpy.typing import ArrayLike
@@ -22,9 +23,7 @@ except ModuleNotFoundError:
     # There can be many possible types, but we recommend you to use the types below.
     ArrayLike = Union[list, tuple, np.ndarray]
 
-"""
-
-"""
+# Stopwords used by nltk
 stopword = set(['them', 'through', 'themselves', 'a', 'until', "couldn't", 'ourselves', "doesn't", 'or', "mightn't", 'why', 'wouldn', 'mustn', 'been', 'my', 'i', 'off', 'herself',
 "needn't", 'ours', 'just', 'they', "hasn't", 'ma', 'most', 'to', 't', 's', 'her', 'from', 'our', 'y', "you'd", 'who', 'you', 'of', 'did', 'yourself', 'by', "should've", 'which',
 'again', 'yourselves', 'how', 'aren', 'she', 'for', 'into', 'himself', 're', 'about', 'during', 'only', 'be', "you'll", 'own', 'shan', 'his', 'has', 'hadn', "you've", "don't",
@@ -35,6 +34,7 @@ stopword = set(['them', 'through', 'themselves', 'a', 'until', "couldn't", 'ours
 'over', "mustn't", 'if', 'under', 'here', 'more', 'those', 'further', 'having', 'some', 'their', "haven't", 'but', 'after', 'hasn', "that'll", 'when', 'very', 'nor', 'him', 'there',
 'up', "it's", 'shouldn', 'each', 'while', "wasn't", 'an', 'm', 'not'])
 
+# List of special characters to ignore
 special_list = ['~', '`', '!', '@', '#', '$', '%', '^', '&', '*', '(', ')', '-', '_', '+', '=', '{', '[', '}', ']', ':', ';', '"', '\'', '<', ',', '>', '.', '?', '/', '\\']
 
 special_dict = dict()
@@ -137,7 +137,7 @@ def preprocess_and_split_to_tokens(sentences: ArrayLike, n_gram: int) -> ArrayLi
     sents = np.array(sentences)
     result = []
 
-    """ Tokenizing every strings in array"""
+    # Tokenizing every strings in array
     for sent in sents:
         """
         Executing pre-processing
@@ -164,7 +164,7 @@ def preprocess_and_split_to_tokens(sentences: ArrayLike, n_gram: int) -> ArrayLi
                     new_token += " "
                     new_token += tokens[token_ind[i]]
             
-            result[-1].append(new_token)
+                result[-1].append(new_token)
 
     return result
 
@@ -192,11 +192,29 @@ def create_bow(sentences: ArrayLike, n_gram: int, vocab: Dict[str, int] = None,
     tokens_per_sentence = preprocess_and_split_to_tokens(sentences, n_gram)
 
     if vocab is None:
-        print("{} Vocab construction".format(msg_prefix))
-        raise NotImplementedError
+        vocab = dict()
+        ind = 0
 
+        for tokens in tokens_per_sentence:
+            for token in tokens:
+                if vocab.get(token) == None:
+                    vocab[token] = ind
+                    ind += 1
+    
+    bow_array = np.zeros(shape=(len(sentences), len(vocab)), dtype=np.float32)
+    for ind, tokens in enumerate(tokens_per_sentence):
+        for token in tokens:
+            token_id = vocab.get(token)
+            if token_id == None:
+                continue
+
+            bow_array[ind][token_id] += 1
+
+    #normalized_bow_array = normalize(bow_array)
+    normalized_bow_array = bow_array
     print("{} Bow construction".format(msg_prefix))
-    raise NotImplementedError
+
+    return vocab, normalized_bow_array
 
 
 def run(test_xs=None, test_ys=None, num_samples=5000, verbose=True, n_gram=1):
@@ -220,6 +238,9 @@ def run(test_xs=None, test_ys=None, num_samples=5000, verbose=True, n_gram=1):
     clf = LogisticRegression(verbose=1, solver="liblinear")
     clf.fit(train_bows, train_ys)
     assert hasattr(clf, "predict")
+
+    # Deleting local variable due to memory issue
+    del train_bows
 
     # Create bow representation of validation set
     _, val_bows = create_bow(val_xs, n_gram=n_gram, vocab=my_vocab, msg_prefix="\n[Validation]")
@@ -245,7 +266,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("--num-samples", default=5000, type=int)
     parser.add_argument("--verbose", default=True, type=bool)
-    parser.add_argument("--n_gram", default=1, type=int)
+    parser.add_argument("--n_gram", default=2, type=int)
     args = parser.parse_args()
 
     run(
